@@ -50,6 +50,7 @@
   * [Kafka](data-pipeline/input/service-kafka.md)
   * [Mock数据-Service](data-pipeline/input/service-mock.md)
   * [Syslog数据](data-pipeline/input/service-syslog.md)
+  * [eBPF网络调用数据](data-pipeline/input/metric-observer.md)
 * [处理](data-pipeline/processor/README.md)
   * [添加字段](data-pipeline/processor/processor-add-fields.md)
   * [原始数据](data-pipeline/processor/default.md)
@@ -113,8 +114,9 @@
 
 * [容器场景iLogtail与Filebeat性能对比测试](benchmark/performance-compare-with-filebeat.md)
 
-## Awesome iLogtail <a href="#awesome-ilogtail" id="awesome-ilogtail"></a>
+## Awesome iLogtail
 
+* [走近iLogtail社区版](awesome-ilogtail/ilogtail.md)
 * [iLogtail社区版使用入门](awesome-ilogtail/getting-started.md)
 * [iLogtail社区版开发者指南](awesome-ilogtail/developer-guide.md)
 * [iLogtail社区版使用案例](awesome-ilogtail/use-cases.md)
