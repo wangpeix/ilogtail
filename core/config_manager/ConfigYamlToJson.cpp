@@ -34,6 +34,7 @@ const std::string PROCESSOR_DELIMITER_ACCELERATE = "processor_delimiter_accelera
 
 const std::string PROCESSOR_SPLIT_LINE_LOG_USING_SEP = "processor_split_log_string";
 const std::string PROCESSOR_SPLIT_LINE_LOG_USING_REG = "processor_split_log_regex";
+const std::string PROCESSOR_SPLIT_MULTI_ROW_BY_TIME_RULE = "processor_split_multi_row_by_time_rule";
 
 ConfigYamlToJson::ConfigYamlToJson() {
     // file_log params
@@ -334,7 +335,8 @@ bool ConfigYamlToJson::CheckPluginConfig(const string configName, const YAML::No
         } else {
             if (0 == workMode.mLogSplitProcessorPluginType.size()
                 && (0 == processorPluginType.compare(PROCESSOR_SPLIT_LINE_LOG_USING_SEP)
-                    || 0 == processorPluginType.compare(PROCESSOR_SPLIT_LINE_LOG_USING_REG))) {
+                    || 0 == processorPluginType.compare(PROCESSOR_SPLIT_LINE_LOG_USING_REG)
+                    || 0 == processorPluginType.compare(PROCESSOR_SPLIT_MULTI_ROW_BY_TIME_RULE))) {
                 workMode.mLogSplitProcessorPluginType = processorPluginType;
                 if (iter->second.mFirstPos != 0) {
                     LOG_ERROR(sLogger,
