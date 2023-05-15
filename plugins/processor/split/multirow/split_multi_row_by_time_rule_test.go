@@ -23,17 +23,77 @@ func newProcessor() (*ProcessorSplitMultiRowByTimeRule, error) {
 	return processor, err
 }
 
-func TestMultiRow(t *testing.T) {
+// case1: 多行日志 & 最后一行有换行符
+func TestMultiCase1(t *testing.T) {
+	var log = `[2023-05-14 14:26:18][INFO][..xiaoj
+at java.base/java.lang.Thread.sleep1(Native Method)
+[2023-05-14 14:26:19][INFO][..xiaoj
+at java.base/java.lang.Thread.sleep2(Native Method)
+at com.bigdata.agent.source.log.offset.OffsetManager$1.run(OffsetManager.java:102)
+`
 	processor, err := newProcessor()
 	require.NoError(t, err)
+	split(processor, log)
+}
 
-	log := `[2023-05-14 14:21:09][INFO][.../cache.go:198] _undef||traceid=xxx||spanid=xxx||hintCode=0||hintContent=xxx||thread=ThreadPoolExecutor-0_0||java.lang.InterruptedException: sleep interrupted
-    at java.base/java.lang.Thread.sleep(Native Method)
-    at java.base/java.lang.Thread.run(Thread.java:834)
-[2023-05-14 14:21:10][INFO][.../cache.go:198] _undef||traceid=xxx||spanid=xxx||hintCode=0||hintContent=xxx||thread=ThreadPoolExecutor-0_0||java.lang.InterruptedException: sleep interrupted
-    at java.base/java.lang.Thread.sleep(Native Method)
-    at java.base/java.lang.Thread.run(Thread.java:834)`
+// case2: 多行日志 & 最后一行无换行符
+func TestMultiCase2(t *testing.T) {
+	var log = `[2023-05-14 14:26:18][INFO][..xiaoj
+at java.base/java.lang.Thread.sleep1(Native Method)
+[2023-05-14 14:26:19][INFO][..xiaoj
+at java.base/java.lang.Thread.sleep2(Native Method)
+at com.bigdata.agent.source.log.offset.OffsetManager$1.run(OffsetManager.java:102)`
+	processor, err := newProcessor()
+	require.NoError(t, err)
+	split(processor, log)
+}
 
+// case3: 多行日志 & 只有一行时间规则日志 & 有换行符
+func TestMultiCase3(t *testing.T) {
+
+	var log = `[2023-05-14 14:26:18][INFO][..xiaoj
+`
+	processor, err := newProcessor()
+	require.NoError(t, err)
+	split(processor, log)
+}
+
+// case4: 多行日志 & 只有一行时间规则日志 & 无换行符
+func TestMultiCase4(t *testing.T) {
+	var log = `[2023-05-14 14:26:18][INFO][..xiaoj`
+	processor, err := newProcessor()
+	require.NoError(t, err)
+	split(processor, log)
+}
+
+// case5: 多行日志 & 只有一行无时间规则日志 & 有换行符
+func TestMultiCase5(t *testing.T) {
+	var log = `com.bigdata.agent.source.log
+`
+	processor, err := newProcessor()
+	require.NoError(t, err)
+	split(processor, log)
+}
+
+// case6: 多行日志 & 只有一行无时间规则日志 & 无换行符
+func TestMultiCase6(t *testing.T) {
+	var log = `com.bigdata.agent.source.log`
+
+	processor, err := newProcessor()
+	require.NoError(t, err)
+	split(processor, log)
+}
+
+// case7: 多行日志 & 只有一个换行符
+func TestMultiCase7(t *testing.T) {
+	var log = `
+`
+	processor, err := newProcessor()
+	require.NoError(t, err)
+	split(processor, log)
+}
+
+func split(processor *ProcessorSplitMultiRowByTimeRule, log string) {
 	logPb := test.CreateLogs("content", log)
 	logArray := make([]*protocol.Log, 1)
 	logArray[0] = logPb
@@ -41,5 +101,4 @@ func TestMultiRow(t *testing.T) {
 	destLogs := processor.ProcessLogs(logArray)
 	marshal, _ := json.MarshalIndent(destLogs, "", "    ")
 	println("processor解析后数据: " + string(marshal))
-
 }

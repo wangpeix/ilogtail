@@ -72,9 +72,7 @@ func (p *ProcessorSplitMultiRowByTimeRule) SplitLog(destLogArray []*protocol.Log
 	lastCheckIndex := 0
 
 	isFirstLine := true
-	//lastLine := nil
-	var lastLine *protocol.Log = nil
-	var lastLineContent *string = nil
+	var lastLineContent strings.Builder
 	totalLen := len(valueStr)
 	for i := 0; i < totalLen; i++ {
 		if (valueStr[i] == '\n') || (i == (totalLen-1) && valueStr[i] != '\n') {
@@ -82,38 +80,50 @@ func (p *ProcessorSplitMultiRowByTimeRule) SplitLog(destLogArray []*protocol.Log
 			timeString := p.getTimeString(line)
 			if timeString != nil {
 				if isFirstLine {
-					copyLog := protocol.CloneLog(destLog)
-					lastLineContent = &line
-					copyLog.Contents = append(copyLog.Contents, &protocol.Log_Content{
-						Key: rowContent.GetKey(), Value: *lastLineContent})
-					destLogArray = append(destLogArray, copyLog)
-					lastLine = copyLog
-					lastCheckIndex = i + 1
+					lastLineContent.WriteString(line)
 					isFirstLine = false
+
+					if i == totalLen-1 {
+						copyLog := protocol.CloneLog(destLog)
+						copyLog.Contents = append(copyLog.Contents, &protocol.Log_Content{
+							Key: rowContent.GetKey(), Value: lastLineContent.String()})
+						destLogArray = append(destLogArray, copyLog)
+						lastLineContent.Reset()
+					}
 				} else {
 					copyLog := protocol.CloneLog(destLog)
 					copyLog.Contents = append(copyLog.Contents, &protocol.Log_Content{
-						Key: rowContent.GetKey(), Value: line})
+						Key: rowContent.GetKey(), Value: lastLineContent.String()})
 					destLogArray = append(destLogArray, copyLog)
-					lastLine = copyLog
-					lastLineContent = &line
-					lastCheckIndex = i + 1
+
+					lastLineContent.Reset()
+					lastLineContent.WriteString(line)
 				}
 			} else {
 				if !isFirstLine {
-					temp := *lastLineContent
-					temp += line
-					*lastLineContent = temp
-					lastLine.GetContents()[0].Value = *lastLineContent
-					lastCheckIndex = i + 1
+					lastLineContent.WriteString(line)
+					if i == totalLen-1 {
+						copyLog := protocol.CloneLog(destLog)
+						copyLog.Contents = append(copyLog.Contents, &protocol.Log_Content{
+							Key: rowContent.GetKey(), Value: lastLineContent.String()})
+						destLogArray = append(destLogArray, copyLog)
+						lastLineContent.Reset()
+					}
 				} else {
-					copyLog := protocol.CloneLog(destLog)
-					copyLog.Contents = append(copyLog.Contents, &protocol.Log_Content{
-						Key: rowContent.GetKey(), Value: line})
-					destLogArray = append(destLogArray, copyLog)
-					lastCheckIndex = i + 1
+					lastLineContent.WriteString(line)
+					isFirstLine = false
+
+					if i == totalLen-1 {
+						copyLog := protocol.CloneLog(destLog)
+						copyLog.Contents = append(copyLog.Contents, &protocol.Log_Content{
+							Key: rowContent.GetKey(), Value: lastLineContent.String()})
+						destLogArray = append(destLogArray, copyLog)
+						lastLineContent.Reset()
+					}
+
 				}
 			}
+			lastCheckIndex = i + 1
 		}
 	}
 
