@@ -735,6 +735,7 @@ void ModifyHandler::Handle(const Event& event) {
                                                                       reader->GetProjectName(),
                                                                       reader->GetCategory(),
                                                                       reader->GetConvertedPath(),
+                                                                      reader->GetExtraTags(),
                                                                       reader->GetDevInode().dev,
                                                                       reader->GetDevInode().inode,
                                                                       reader->GetFileSize(),
@@ -859,11 +860,11 @@ void ModifyHandler::HandleTimeOut() {
         LogFileReaderPtrArray& readerArray = readerIter->second;
         // donot check file delete flag or close ptr when array size > 1
         if (readerArray.size() > 1) {
-            ++readerIter;
-            actioned = true;
             LOG_DEBUG(sLogger,
                       ("HandleTimeOut filename", readerIter->first)("dir", readerArray[0]->GetLogPath().c_str())(
                           "action", "continue")("reason", "reader array size > 1"));
+            ++readerIter;
+            actioned = true;
             continue;
         }
 
