@@ -15,12 +15,13 @@
 package kafka
 
 import (
-	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/bytedance/sonic"
 
 	"github.com/alibaba/ilogtail/pkg/logger"
 	"github.com/alibaba/ilogtail/pkg/pipeline"
@@ -37,6 +38,17 @@ type FlusherKafka struct {
 	HashKeys        []string
 	HashOnce        bool
 	ClientID        string
+	Version         string
+
+	// The maximum number of messages the producer will send in a single
+	MaxMessageBytes *int
+	// The maximum number of events to bulk in a single Kafka request. The default is 2048.
+	BulkMaxSize int
+	// Duration to wait before sending bulk Kafka request. 0 is no delay. The default is 0.
+	BulkFlushFrequency time.Duration
+
+	// Per Kafka broker number of messages buffered in output pipeline. The default is 256
+	ChanBufferSize int
 
 	isTerminal chan bool
 	producer   sarama.AsyncProducer
@@ -55,6 +67,29 @@ func (k *FlusherKafka) Init(context pipeline.Context) error {
 		return err
 	}
 	config := sarama.NewConfig()
+
+	kafkaVersion, ok := parseVersion(k.Version)
+	if !ok {
+		var err = fmt.Errorf("unknown/unsupported kafka version: %v", config.Version)
+		logger.Error(k.context.GetRuntimeContext(), "FLUSHER_INIT_ALARM", "init kafka flusher fail, error", err)
+		return err
+	}
+	config.Version = kafkaVersion
+
+	// configure producer API properties
+	if k.MaxMessageBytes != nil {
+		config.Producer.MaxMessageBytes = *k.MaxMessageBytes
+	}
+
+	// configure per broker go channel buffering
+	config.ChannelBufferSize = k.ChanBufferSize
+
+	// configure bulk size
+	config.Producer.Flush.MaxMessages = k.BulkMaxSize
+	if k.BulkFlushFrequency > 0 {
+		config.Producer.Flush.Frequency = k.BulkFlushFrequency
+	}
+
 	if len(k.SASLUsername) == 0 {
 		logger.Warning(k.context.GetRuntimeContext(), "FLUSHER_INIT_ALARM", "SASL information is not set, access Kafka server without authentication")
 	} else {
@@ -122,17 +157,23 @@ func (k *FlusherKafka) Flush(projectName string, logstoreName string, configName
 
 func (k *FlusherKafka) NormalFlush(projectName string, logstoreName string, configName string, logGroupList []*protocol.LogGroup) error {
 	for _, logGroup := range logGroupList {
-		logger.Debug(k.context.GetRuntimeContext(), "[LogGroup] topic", logGroup.Topic, "logstore", logGroup.Category, "logcount", len(logGroup.Logs), "tags", logGroup.LogTags)
 
-		for _, log := range logGroup.Logs {
-			buf, _ := json.Marshal(log)
-			logger.Debug(k.context.GetRuntimeContext(), string(buf))
-			m := &sarama.ProducerMessage{
-				Topic: k.Topic,
-				Value: sarama.ByteEncoder(buf),
-			}
-			k.producer.Input() <- m
+		logger.Debug(k.context.GetRuntimeContext(), "[LogGroup] topic", logGroup.Topic, "logstore", logGroup.Category, "logcount", len(logGroup.Logs), "tags", logGroup.LogTags)
+		buf, _ := sonic.Marshal(logGroup)
+		m := &sarama.ProducerMessage{
+			Topic: k.Topic,
+			Value: sarama.ByteEncoder(buf),
 		}
+		k.producer.Input() <- m
+		//for _, log := range logGroup.Logs {
+		//	buf, _ := json.Marshal(log)
+		//	logger.Debug(k.context.GetRuntimeContext(), string(buf))
+		//	m := &sarama.ProducerMessage{
+		//		Topic: k.Topic,
+		//		Value: sarama.ByteEncoder(buf),
+		//	}
+		//	k.producer.Input() <- m
+		//}
 	}
 	return nil
 }
@@ -142,7 +183,7 @@ func (k *FlusherKafka) HashFlush(projectName string, logstoreName string, config
 		logger.Debug(k.context.GetRuntimeContext(), "[LogGroup] topic", logGroup.Topic, "logstore", logGroup.Category, "logcount", len(logGroup.Logs), "tags", logGroup.LogTags)
 
 		for _, log := range logGroup.Logs {
-			buf, _ := json.Marshal(log)
+			buf, _ := sonic.Marshal(log)
 			logger.Debug(k.context.GetRuntimeContext(), string(buf))
 			m := &sarama.ProducerMessage{
 				Topic: k.Topic,
@@ -178,6 +219,20 @@ func (k *FlusherKafka) hashPartitionKey(log *protocol.Log, defaultKey string) sa
 	return sarama.StringEncoder(strings.Join(hashData, "###"))
 }
 
+// parseVersion a sarama kafka version
+func parseVersion(version string) (sarama.KafkaVersion, bool) {
+	kafkaVersion, err := sarama.ParseKafkaVersion(version)
+	if err != nil {
+		return sarama.KafkaVersion{}, false
+	}
+	for _, supp := range sarama.SupportedVersions {
+		if kafkaVersion == supp {
+			return kafkaVersion, true
+		}
+	}
+	return sarama.KafkaVersion{}, false
+}
+
 func (*FlusherKafka) SetUrgent(flag bool) {
 }
 
@@ -196,8 +251,12 @@ func (k *FlusherKafka) Stop() error {
 func init() {
 	pipeline.Flushers["flusher_kafka"] = func() pipeline.Flusher {
 		f := &FlusherKafka{
-			ClientID:        "LogtailPlugin",
-			PartitionerType: "random",
+			ClientID:           "LogtailPlugin",
+			PartitionerType:    "random",
+			Version:            "1.0.0",
+			BulkMaxSize:        2048,
+			BulkFlushFrequency: 0,
+			ChanBufferSize:     256,
 		}
 		f.flusher = f.NormalFlush
 		return f
